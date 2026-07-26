@@ -1,11 +1,11 @@
 # gamekee-ba-download-skill
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![OpenCode Skill](https://img.shields.io/badge/OpenCode-Skill-blue)
+![Agent Skills](https://img.shields.io/badge/Agent%20Skills-standard-blue)
 
 > English ｜ [中文](./README.md)
 
-An [OpenCode](https://opencode.ai) skill: lets an AI agent batch-download character images from the [Blue Archive (BA) wiki](https://www.gamekee.com/ba/) on gamekee, following a fixed pipeline.
+An [Agent Skills](https://agentskills.io)-standard skill: lets an AI agent batch-download character images from the [Blue Archive (BA) wiki](https://www.gamekee.com/ba/) on gamekee, following a fixed pipeline.
 
 > Currently supports only the **JP server** and two image types: **Memorial Lobby** and **Official Introduction**. Full operation manual in [`SKILL.md`](./SKILL.md).
 
@@ -31,10 +31,9 @@ output_dir/
 
 ## Prerequisites
 
-- **[OpenCode](https://opencode.ai)** installed.
-- **Playwright MCP** (provides `browser_navigate` / `browser_run_code_unsafe` and other browser tools; the scraping phase depends on them). Note: the base OpenCode distribution does **not** bundle Playwright MCP. Choose one of:
-  - **Recommended**: install the [oh-my-openagent](https://github.com/code-yeongyu/oh-my-openagent) plugin, which configures Playwright MCP automatically and works out of the box; or
-  - Manually add the MCP server in `opencode.json`:
+- **Playwright MCP** (provides `browser_navigate` / `browser_run_code_unsafe` and other browser tools; the scraping phase depends on them). Any MCP-supporting agent needs this tool — base agents do **not** bundle Playwright MCP and require manual configuration.
+  - **Convenient way**: install the [oh-my-openagent](https://github.com/code-yeongyu/oh-my-openagent) plugin for automatic configuration (OpenCode); or
+  - Add the MCP server definition to your platform's config file (config file name varies by platform: OpenCode uses `opencode.json`, Claude Code uses `.mcp.json`, Goose uses `config.yaml` — consult each platform's MCP docs):
     ```json
     {
       "mcp": {
@@ -45,14 +44,19 @@ output_dir/
       }
     }
     ```
-  - Both options require **Node.js 18+**; Playwright downloads browser binaries automatically on first use.
+  - Requires **Node.js 18+**; Playwright downloads browser binaries automatically on first use.
 - **PowerShell** (used by the `.ps1` download script): Windows ships with PowerShell 5.1; other platforms need [PowerShell Core (pwsh)](https://learn.microsoft.com/powershell/scripting/install/installing-powershell).
 
 ## Installation
 
-> An OpenCode skill is simply a `SKILL.md` file placed in the skills directory. Pick one of the two methods below.
+> An Agent Skill is simply a `SKILL.md` file placed in the corresponding platform's skills directory. Installation steps vary by platform below.
 
-### Method 1: Let the agent install it (recommended)
+<details>
+<summary>OpenCode</summary>
+
+**Skill Path**: `~/.config/opencode/skills/gamekee-ba-download/SKILL.md`
+
+**Method 1: Let the agent install it (recommended)**
 
 Paste the following to your OpenCode agent:
 
@@ -64,7 +68,7 @@ Install the OpenCode skill "gamekee-ba-download" (batch-download Blue Archive ch
 3. Confirm the file is in place when done.
 ```
 
-### Method 2: git clone + manual copy
+**Method 2: Manual copy**
 
 ```bash
 git clone https://github.com/Elo-Mary/gamekee-ba-download-skill.git
@@ -85,6 +89,101 @@ Copy-Item ".\gamekee-ba-download-skill\SKILL.md" "$env:USERPROFILE\.config\openc
 ```
 
 **Start a new OpenCode session** after installation for the skill to take effect.
+</details>
+
+<details>
+<summary>Claude Code</summary>
+
+**Skill Path**: `~/.claude/skills/gamekee-ba-download/SKILL.md`
+
+> Per [Claude Code official docs](https://code.claude.com/docs/en/skills), Claude Code loads skills from `~/.claude/skills/`. If the official docs have been updated, follow the latest version.
+
+```bash
+git clone https://github.com/Elo-Mary/gamekee-ba-download-skill.git
+```
+
+Linux / macOS:
+
+```bash
+mkdir -p ~/.claude/skills/gamekee-ba-download
+cp gamekee-ba-download-skill/SKILL.md ~/.claude/skills/gamekee-ba-download/SKILL.md
+```
+
+Windows (PowerShell):
+
+```powershell
+New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.claude\skills\gamekee-ba-download"
+Copy-Item ".\gamekee-ba-download-skill\SKILL.md" "$env:USERPROFILE\.claude\skills\gamekee-ba-download\SKILL.md"
+```
+
+**Start a new Claude Code session** after installation for the skill to take effect.
+</details>
+
+<details>
+<summary>Goose</summary>
+
+**Skill Path**: `~/.agents/skills/gamekee-ba-download/SKILL.md`
+
+> Per [Agent Skills standard](https://agentskills.io) and Goose docs, Goose loads skills from `~/.agents/skills/`. If Goose official docs have been updated, follow the latest version.
+
+```bash
+git clone https://github.com/Elo-Mary/gamekee-ba-download-skill.git
+```
+
+Linux / macOS:
+
+```bash
+mkdir -p ~/.agents/skills/gamekee-ba-download
+cp gamekee-ba-download-skill/SKILL.md ~/.agents/skills/gamekee-ba-download/SKILL.md
+```
+
+Windows (PowerShell):
+
+```powershell
+New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.agents\skills\gamekee-ba-download"
+Copy-Item ".\gamekee-ba-download-skill\SKILL.md" "$env:USERPROFILE\.agents\skills\gamekee-ba-download\SKILL.md"
+```
+
+**Start a new Goose session** after installation for the skill to take effect.
+</details>
+
+<details>
+<summary>Cursor</summary>
+
+**Skill Path**: `.cursor/skills/gamekee-ba-download/SKILL.md`
+
+> Cursor's skills directory is typically `.cursor/skills/` within the project. Consult [Cursor official docs](https://docs.cursor.com) for the latest path. Reference steps below:
+
+```bash
+git clone https://github.com/Elo-Mary/gamekee-ba-download-skill.git
+```
+
+Linux / macOS:
+
+```bash
+mkdir -p .cursor/skills/gamekee-ba-download
+cp gamekee-ba-download-skill/SKILL.md .cursor/skills/gamekee-ba-download/SKILL.md
+```
+
+Windows (PowerShell):
+
+```powershell
+New-Item -ItemType Directory -Force -Path ".cursor\skills\gamekee-ba-download"
+Copy-Item ".\gamekee-ba-download-skill\SKILL.md" ".cursor\skills\gamekee-ba-download\SKILL.md"
+```
+
+Restart or reload Cursor after installation for the skill to take effect.
+</details>
+
+## Platform Support
+
+| Platform | Status |
+|---|---|
+| OpenCode | Supported |
+| Claude Code | Supported |
+| Goose | Supported |
+| Cursor | Supported |
+| Codex CLI | Not yet supported (requires AGENTS.md embedding or plugin packaging; deferred to future.) |
 
 ## Usage
 
