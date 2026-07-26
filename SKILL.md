@@ -26,7 +26,7 @@ description: 批量下载 gamekee.com 碧蓝档案(BA)图鉴「实装学生」�
 
 ## 关键约束（踩坑实证，不可违反）
 
-1. **MCP 浏览器进程完全沙箱化**：`browser_run_code_unsafe` 里没有 `require`/`process`/`global`，不能 `import('node:fs')`，`navigator.clipboard` 是 undefined。**唯一数据通道 = 该函数的 return 字符串**。流程必须分两段：浏览器抽 URL（return JSON 字符串）→ 用 Write 工具落盘 → PowerShell 下载。
+1. **MCP 浏览器进程完全沙箱化**：`browser_run_code_unsafe` 里没有 `require`/`process`/`global`，不能 `import('node:fs')`，`navigator.clipboard` 是 undefined。**唯一数据通道 = 该函数的 return 字符串**。流程必须分两段：浏览器抽 URL（return JSON 字符串）→ 将返回的 JSON 写入文件 → PowerShell 下载。
 2. **content JSON 走不通捷径**：`api-cdn.gamekee.com/wiki2.0/pro/829/content/{id}.json` 被 Tencent EdgeOne WAF 拦（PowerShell 直请返回 567；页面内 `fetch` 被 CORS 拦）。但**图片 host `cdnimg-v2.gamekee.com` 不拦**——只能「浏览器跑 JS 拿 img.src → PowerShell 下载图」，无法走「读 API JSON 解析图 URL」。
 3. **PowerShell 5.1 编码**：含中文字面量（路径名、`回忆大厅`）的 `.ps1` 脚本**必须存成 UTF-8 with BOM**，否则 PS 5.1 按 GBK 解析，中文路径变乱码，所有下载报「路径不存在」。用 `[IO.File]::ReadAllBytes` 检测后 prepend `EF BB BF` 可补 BOM。
 4. **批大小默认 12，仍超时降 6**：实测 15 个角色/批会因单个页面慢加载把单次 MCP 调用拖到 10 分钟超时。12 是大多数时段稳定上限。**若 12 仍触发 MCP 超时**（服务端负载时段波动会导致），降为 6 个/批；拆批结果存为 `batchNNa.json` / `batchNNb.json`，download.ps1 的 `batch*.json` 通配符自动覆盖，无需改脚本。
@@ -120,7 +120,7 @@ async (page) => {
 
 ### 阶段 3 — 浏览器→文件系统桥
 
-每批返回的 JSON 用 `Write` 工具落盘成 `batches/batchNN.json`（每文件一批，NN 从 01 起）。结构：
+每批返回的 JSON 写入 `batches/batchNN.json` 文件（每文件一批，NN 从 01 起）。结构：
 ```json
 [
   {"id":"59934","name":"日奈","img":"https://cdnimg-v2.gamekee.com/.../674225.png"},
