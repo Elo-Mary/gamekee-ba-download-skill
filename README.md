@@ -1,11 +1,11 @@
 # gamekee-ba-download-skill
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![OpenCode Skill](https://img.shields.io/badge/OpenCode-Skill-blue)
+![Agent Skills](https://img.shields.io/badge/Agent%20Skills-standard-blue)
 
 > 中文 ｜ [English](./README.en.md)
 
-一个 [OpenCode](https://opencode.ai) skill：让 AI agent 按既定流程，从 gamekee [碧蓝档案（BA）图鉴](https://www.gamekee.com/ba/) 批量下载角色图片。
+一个 [Agent Skills](https://agentskills.io) 标准技能：让 AI agent 按既定流程，从 gamekee [碧蓝档案（BA）图鉴](https://www.gamekee.com/ba/) 批量下载角色图片。
 
 > 当前仅支持 **日服** 的 **回忆大厅** 与 **官方介绍** 两种图。完整操作手册见 [`SKILL.md`](./SKILL.md)。
 
@@ -31,10 +31,9 @@ output_dir/
 
 ## 前置要求
 
-- **[OpenCode](https://opencode.ai)** 已安装。
-- **Playwright MCP**（提供 `browser_navigate` / `browser_run_code_unsafe` 等浏览器工具，本 skill 的抓取阶段依赖它们）。注意：基础版 OpenCode **不**自带 Playwright MCP，需二选一：
-  - **推荐**：安装 [oh-my-openagent](https://github.com/code-yeongyu/oh-my-openagent) 插件，它会自动配置 Playwright MCP，开箱即用；或
-  - 手动在 `opencode.json` 中添加 MCP 服务器：
+- **Playwright MCP**（提供 `browser_navigate` / `browser_run_code_unsafe` 等浏览器工具，本 skill 的抓取阶段依赖它们）。任何支持 MCP 的 agent 都需要此工具——基础版 agent **不**自带 Playwright MCP，需手动添加。
+  - **便捷方式**：安装 [oh-my-openagent](https://github.com/code-yeongyu/oh-my-openagent) 插件可自动配置（适用于 OpenCode）；或
+  - 在对应平台的 MCP 配置文件中添加以下服务器定义（配置文件名因平台而异：OpenCode 使用 `opencode.json`，Claude Code 使用 `.mcp.json`，Goose 使用 `config.yaml`——请查阅各平台的 MCP 文档）：
     ```json
     {
       "mcp": {
@@ -45,14 +44,19 @@ output_dir/
       }
     }
     ```
-  - 两者均需 **Node.js 18+**；Playwright 会在首次使用时自动下载浏览器二进制。
+  - 需 **Node.js 18+**；Playwright 会在首次使用时自动下载浏览器二进制。
 - **PowerShell**（下载阶段使用 `.ps1` 脚本）：Windows 自带的 PowerShell 5.1 即可，其他系统需安装 [PowerShell Core (pwsh)](https://learn.microsoft.com/powershell/scripting/install/installing-powershell)。
 
 ## 安装
 
-> OpenCode skill 就是一个放在 skills 目录下的 `SKILL.md` 文件。以下两种方式任选其一。
+> Agent Skill 就是一个放在对应平台 skills 目录下的 `SKILL.md` 文件。以下按平台分别说明安装方式。
 
-### 方式一：让 agent 帮你装（推荐）
+<details>
+<summary>OpenCode</summary>
+
+**Skill 路径**：`~/.config/opencode/skills/gamekee-ba-download/SKILL.md`
+
+**方式一：让 agent 帮你装（推荐）**
 
 把下面这段话直接发给你的 OpenCode agent：
 
@@ -64,7 +68,7 @@ output_dir/
 3. 完成后确认文件已就位
 ```
 
-### 方式二：git clone + 手动拷贝
+**方式二：手动拷贝**
 
 ```bash
 git clone https://github.com/Elo-Mary/gamekee-ba-download-skill.git
@@ -85,6 +89,101 @@ Copy-Item ".\gamekee-ba-download-skill\SKILL.md" "$env:USERPROFILE\.config\openc
 ```
 
 安装完成后 **新开一个 OpenCode 会话** 即可生效。
+</details>
+
+<details>
+<summary>Claude Code</summary>
+
+**Skill 路径**：`~/.claude/skills/gamekee-ba-download/SKILL.md`
+
+> 根据 [Claude Code 官方文档](https://code.claude.com/docs/en/skills)，Claude Code 从 `~/.claude/skills/` 目录加载 skill。如果官方文档已更新，请以最新文档为准。
+
+```bash
+git clone https://github.com/Elo-Mary/gamekee-ba-download-skill.git
+```
+
+Linux / macOS：
+
+```bash
+mkdir -p ~/.claude/skills/gamekee-ba-download
+cp gamekee-ba-download-skill/SKILL.md ~/.claude/skills/gamekee-ba-download/SKILL.md
+```
+
+Windows (PowerShell)：
+
+```powershell
+New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.claude\skills\gamekee-ba-download"
+Copy-Item ".\gamekee-ba-download-skill\SKILL.md" "$env:USERPROFILE\.claude\skills\gamekee-ba-download\SKILL.md"
+```
+
+安装完成后 **新开一个 Claude Code 会话** 即可生效。
+</details>
+
+<details>
+<summary>Goose</summary>
+
+**Skill 路径**：`~/.agents/skills/gamekee-ba-download/SKILL.md`
+
+> 根据 [Agent Skills 标准](https://agentskills.io) 及 Goose 文档，Goose 从 `~/.agents/skills/` 目录加载 skill。如果 Goose 官方文档已更新，请以最新文档为准。
+
+```bash
+git clone https://github.com/Elo-Mary/gamekee-ba-download-skill.git
+```
+
+Linux / macOS：
+
+```bash
+mkdir -p ~/.agents/skills/gamekee-ba-download
+cp gamekee-ba-download-skill/SKILL.md ~/.agents/skills/gamekee-ba-download/SKILL.md
+```
+
+Windows (PowerShell)：
+
+```powershell
+New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.agents\skills\gamekee-ba-download"
+Copy-Item ".\gamekee-ba-download-skill\SKILL.md" "$env:USERPROFILE\.agents\skills\gamekee-ba-download\SKILL.md"
+```
+
+安装完成后 **新开一个 Goose 会话** 即可生效。
+</details>
+
+<details>
+<summary>Cursor</summary>
+
+**Skill 路径**：`.cursor/skills/gamekee-ba-download/SKILL.md`
+
+> Cursor 的 skills 目录通常为项目内的 `.cursor/skills/`。请查阅 [Cursor 官方文档](https://docs.cursor.com) 确认最新路径。以下为参考步骤：
+
+```bash
+git clone https://github.com/Elo-Mary/gamekee-ba-download-skill.git
+```
+
+Linux / macOS：
+
+```bash
+mkdir -p .cursor/skills/gamekee-ba-download
+cp gamekee-ba-download-skill/SKILL.md .cursor/skills/gamekee-ba-download/SKILL.md
+```
+
+Windows (PowerShell)：
+
+```powershell
+New-Item -ItemType Directory -Force -Path ".cursor\skills\gamekee-ba-download"
+Copy-Item ".\gamekee-ba-download-skill\SKILL.md" ".cursor\skills\gamekee-ba-download\SKILL.md"
+```
+
+安装完成后在 Cursor 中重启或重新加载即可生效。
+</details>
+
+## 平台支持
+
+| 平台 | 支持状态 |
+|---|---|
+| OpenCode | 支持 |
+| Claude Code | 支持 |
+| Goose | 支持 |
+| Cursor | 支持 |
+| Codex CLI | 暂不支持（需 AGENTS.md 嵌入或插件打包，留待未来） |
 
 ## 使用
 
