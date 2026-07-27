@@ -34,6 +34,7 @@ output_dir/
 - **Playwright MCP**（提供 `browser_navigate` / `browser_run_code_unsafe` 等浏览器工具，本 skill 的抓取阶段依赖它们）。任何支持 MCP 的 agent 都需要此工具——基础版 agent **不**自带 Playwright MCP，需手动添加。
   - **便捷方式**：安装 [oh-my-openagent](https://github.com/code-yeongyu/oh-my-openagent) 插件可自动配置（适用于 OpenCode）；或
   - 在对应平台的 MCP 配置文件中添加以下服务器定义（配置文件名因平台而异：OpenCode 使用 `opencode.json`，Claude Code 使用 `.mcp.json`，Goose 使用 `config.yaml`——请查阅各平台的 MCP 文档）：
+    
     ```json
     {
       "mcp": {
@@ -49,26 +50,27 @@ output_dir/
 
 ## 安装
 
-> Agent Skill 就是一个放在对应平台 skills 目录下的 `SKILL.md` 文件。以下按平台分别说明安装方式。
+> Agent Skill 就是一个放在对应平台 skills 目录下的 `SKILL.md` 文件。
+
+### 让 Agent 帮你安装（推荐）
+
+任何平台的 agent 都应该有能力自行找到 skill 存储目录并完成安装。把下面这段话发给你的 agent：
+
+```
+帮我安装 Agent Skill「gamekee-ba-download」（批量下载 gamekee 碧蓝档案角色图片）：
+1. 从 GitHub 仓库 https://github.com/Elo-Mary/gamekee-ba-download-skill 获取 SKILL.md（克隆仓库或直接下载该文件均可）
+2. 找出你当前所在平台的 Agent Skills 存储目录（即该平台加载 skill 的路径），把 SKILL.md 放到 gamekee-ba-download/SKILL.md（目录不存在就创建）
+3. 完成后确认文件已就位
+```
+
+### 手动安装
+
+以下按平台列举手动拷贝步骤。如果你的平台未列出，见末尾的「其它平台」。
 
 <details>
 <summary>OpenCode</summary>
 
 **Skill 路径**：`~/.config/opencode/skills/gamekee-ba-download/SKILL.md`
-
-**方式一：让 agent 帮你装（推荐）**
-
-把下面这段话直接发给你的 OpenCode agent：
-
-```
-帮我安装 OpenCode skill「gamekee-ba-download」（批量下载 gamekee 碧蓝档案角色图片）：
-1. 从 GitHub 仓库 https://github.com/Elo-Mary/gamekee-ba-download-skill 获取 SKILL.md（克隆仓库或直接下载该文件均可）
-2. 把 SKILL.md 放到 OpenCode 的 skills 目录下，路径为 gamekee-ba-download/SKILL.md（目录不存在就创建）。
-   目录位置：Linux/macOS 为 ~/.config/opencode/skills/，Windows 为 %USERPROFILE%\.config\opencode\skills\
-3. 完成后确认文件已就位
-```
-
-**方式二：手动拷贝**
 
 ```bash
 git clone https://github.com/Elo-Mary/gamekee-ba-download-skill.git
@@ -89,6 +91,7 @@ Copy-Item ".\gamekee-ba-download-skill\SKILL.md" "$env:USERPROFILE\.config\openc
 ```
 
 安装完成后 **新开一个 OpenCode 会话** 即可生效。
+
 </details>
 
 <details>
@@ -117,6 +120,7 @@ Copy-Item ".\gamekee-ba-download-skill\SKILL.md" "$env:USERPROFILE\.claude\skill
 ```
 
 安装完成后 **新开一个 Claude Code 会话** 即可生效。
+
 </details>
 
 <details>
@@ -145,6 +149,7 @@ Copy-Item ".\gamekee-ba-download-skill\SKILL.md" "$env:USERPROFILE\.agents\skill
 ```
 
 安装完成后 **新开一个 Goose 会话** 即可生效。
+
 </details>
 
 <details>
@@ -173,21 +178,40 @@ Copy-Item ".\gamekee-ba-download-skill\SKILL.md" ".cursor\skills\gamekee-ba-down
 ```
 
 安装完成后在 Cursor 中重启或重新加载即可生效。
+
+</details>
+
+<details>
+<summary>其它平台</summary>
+
+由于 agent 平台众多，无法逐一列举。以下两种方式任选其一：
+
+**方式一：让 Agent 帮你安装（推荐）**
+
+把上方「让 Agent 帮你安装」中的提示词发给你的 agent。agent 会自行找到当前平台的 skill 存储目录并完成安装。
+
+**方式二：手动安装**
+
+1. 让 agent 帮你找出当前平台的 Agent Skills 存储路径；或自行查阅该平台的官方文档找到该路径。
+2. 从 GitHub 仓库 https://github.com/Elo-Mary/gamekee-ba-download-skill 获取 `SKILL.md`（克隆仓库或直接下载该文件）。
+3. 将 `SKILL.md` 放到该平台的 skills 目录下，路径为 `gamekee-ba-download/SKILL.md`（目录不存在就创建）。
+4. 安装完成后重启或新开会话即可生效。
+
 </details>
 
 ## 平台支持
 
-| 平台 | 支持状态 |
-|---|---|
-| OpenCode | 支持 |
-| Claude Code | 支持 |
-| Goose | 支持 |
-| Cursor | 支持 |
-| Codex CLI | 暂不支持（需 AGENTS.md 嵌入或插件打包，留待未来） |
+| 平台          | 支持状态                           |
+| ----------- | ------------------------------ |
+| OpenCode    | 支持                             |
+| Claude Code | 支持                             |
+| Goose       | 支持                             |
+| Cursor      | 支持                             |
+| Codex CLI   | 暂不支持（需 AGENTS.md 嵌入或插件打包，留待未来） |
 
 ## 使用
 
-在 OpenCode 会话里直接用自然语言触发，例如：
+在你的 agent 会话里直接用自然语言触发，例如：
 
 - 「帮我下载碧蓝档案回忆大厅的图片到 `D:\BA图`」
 - 「下载 gamekee BA 图鉴的官方介绍图」
@@ -195,11 +219,11 @@ Copy-Item ".\gamekee-ba-download-skill\SKILL.md" ".cursor\skills\gamekee-ba-down
 
 可指定参数（有默认值，不填则用默认）：
 
-| 参数 | 默认值 | 说明 |
-|---|---|---|
-| `target` | `hydt` | `hydt`=回忆大厅 ｜ `gfjs`=官方介绍 ｜ `both`=两者都下 |
-| `output_dir` | 当前工作目录 | 图片落盘根目录 |
-| `list_url` | `https://www.gamekee.com/ba/second/23941` | 角色花名册入口（实装学生） |
+| 参数           | 默认值                                       | 说明                                      |
+| ------------ | ----------------------------------------- | --------------------------------------- |
+| `target`     | `hydt`                                    | `hydt`=回忆大厅 ｜ `gfjs`=官方介绍 ｜ `both`=两者都下 |
+| `output_dir` | 当前工作目录                                    | 图片落盘根目录                                 |
+| `list_url`   | `https://www.gamekee.com/ba/second/23941` | 角色花名册入口（实装学生）                           |
 
 agent 会自行走完「抓花名册 → 逐角色抽图 → 下载 → 校验重试」全流程，中途可断点续传、可重跑补下失败项。详见 [`SKILL.md`](./SKILL.md)。
 
@@ -223,4 +247,4 @@ agent 会自行走完「抓花名册 → 逐角色抽图 → 下载 → 校验�
 ## Roadmap
 
 - **更多图片类型**：设定集（日文 / 繁中）、本家画、表情等（需走图集模式，按 `.header-container` 文本切块取该节区全部图）
-- **更多服务器**：国际服 / 国服 / 繁中服
+- **更多服务器**：国际服 / 国服

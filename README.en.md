@@ -4,6 +4,7 @@
 ![Agent Skills](https://img.shields.io/badge/Agent%20Skills-standard-blue)
 
 > English ｜ [中文](./README.md)
+> This document was translated from Chinese by AI.
 
 An [Agent Skills](https://agentskills.io)-standard skill: lets an AI agent batch-download character images from the [Blue Archive (BA) wiki](https://www.gamekee.com/ba/) on gamekee, following a fixed pipeline.
 
@@ -34,6 +35,7 @@ output_dir/
 - **Playwright MCP** (provides `browser_navigate` / `browser_run_code_unsafe` and other browser tools; the scraping phase depends on them). Any MCP-supporting agent needs this tool — base agents do **not** bundle Playwright MCP and require manual configuration.
   - **Convenient way**: install the [oh-my-openagent](https://github.com/code-yeongyu/oh-my-openagent) plugin for automatic configuration (OpenCode); or
   - Add the MCP server definition to your platform's config file (config file name varies by platform: OpenCode uses `opencode.json`, Claude Code uses `.mcp.json`, Goose uses `config.yaml` — consult each platform's MCP docs):
+    
     ```json
     {
       "mcp": {
@@ -49,26 +51,27 @@ output_dir/
 
 ## Installation
 
-> An Agent Skill is simply a `SKILL.md` file placed in the corresponding platform's skills directory. Installation steps vary by platform below.
+> An Agent Skill is simply a `SKILL.md` file placed in the corresponding platform's skills directory.
+
+### Let the agent install it (recommended)
+
+Any platform's agent should be capable of finding its own skill storage directory and completing the installation. Send the following prompt to your agent:
+
+```
+Install the Agent Skill "gamekee-ba-download" (batch-download Blue Archive character images from gamekee):
+1. Get SKILL.md from the GitHub repo https://github.com/Elo-Mary/gamekee-ba-download-skill (clone the repo or download the file directly).
+2. Find the Agent Skills storage directory for the platform you are currently running (i.e., the path where this platform loads skills), and place SKILL.md at gamekee-ba-download/SKILL.md (create the directory if needed).
+3. Confirm the file is in place when done.
+```
+
+### Manual installation
+
+Manual copy steps per platform are listed below. If your platform is not listed, see "Other platforms" at the end.
 
 <details>
 <summary>OpenCode</summary>
 
 **Skill Path**: `~/.config/opencode/skills/gamekee-ba-download/SKILL.md`
-
-**Method 1: Let the agent install it (recommended)**
-
-Paste the following to your OpenCode agent:
-
-```
-Install the OpenCode skill "gamekee-ba-download" (batch-download Blue Archive character images from gamekee):
-1. Get SKILL.md from the GitHub repo https://github.com/Elo-Mary/gamekee-ba-download-skill (clone the repo or download the file directly).
-2. Place SKILL.md in the OpenCode skills directory at gamekee-ba-download/SKILL.md (create the directory if needed).
-   Path: Linux/macOS ~/.config/opencode/skills/, Windows %USERPROFILE%\.config\opencode\skills\
-3. Confirm the file is in place when done.
-```
-
-**Method 2: Manual copy**
 
 ```bash
 git clone https://github.com/Elo-Mary/gamekee-ba-download-skill.git
@@ -89,6 +92,7 @@ Copy-Item ".\gamekee-ba-download-skill\SKILL.md" "$env:USERPROFILE\.config\openc
 ```
 
 **Start a new OpenCode session** after installation for the skill to take effect.
+
 </details>
 
 <details>
@@ -117,6 +121,7 @@ Copy-Item ".\gamekee-ba-download-skill\SKILL.md" "$env:USERPROFILE\.claude\skill
 ```
 
 **Start a new Claude Code session** after installation for the skill to take effect.
+
 </details>
 
 <details>
@@ -145,6 +150,7 @@ Copy-Item ".\gamekee-ba-download-skill\SKILL.md" "$env:USERPROFILE\.agents\skill
 ```
 
 **Start a new Goose session** after installation for the skill to take effect.
+
 </details>
 
 <details>
@@ -173,21 +179,40 @@ Copy-Item ".\gamekee-ba-download-skill\SKILL.md" ".cursor\skills\gamekee-ba-down
 ```
 
 Restart or reload Cursor after installation for the skill to take effect.
+
+</details>
+
+<details>
+<summary>Other platforms</summary>
+
+Since there are many agent platforms, it's impossible to list them all. Either of the two methods below works:
+
+**Method 1: Let the agent install it (recommended)**
+
+Send the prompt from the "Let the agent install it" section above to your agent. The agent will find the current platform's skill storage directory and complete the installation.
+
+**Method 2: Manual install**
+
+1. Have your agent find the current platform's Agent Skills storage path; or consult the platform's official docs yourself to find the path.
+2. Get `SKILL.md` from the GitHub repo https://github.com/Elo-Mary/gamekee-ba-download-skill (clone the repo or download the file).
+3. Place `SKILL.md` at `<skill-dir>/gamekee-ba-download/SKILL.md` (create the directory if needed).
+4. Restart or start a new session after installation for the skill to take effect.
+
 </details>
 
 ## Platform Support
 
-| Platform | Status |
-|---|---|
-| OpenCode | Supported |
-| Claude Code | Supported |
-| Goose | Supported |
-| Cursor | Supported |
-| Codex CLI | Not yet supported (requires AGENTS.md embedding or plugin packaging; deferred to future.) |
+| Platform    | Status                                                                                    |
+| ----------- | ----------------------------------------------------------------------------------------- |
+| OpenCode    | Supported                                                                                 |
+| Claude Code | Supported                                                                                 |
+| Goose       | Supported                                                                                 |
+| Cursor      | Supported                                                                                 |
+| Codex CLI   | Not yet supported (requires AGENTS.md embedding or plugin packaging; deferred to future.) |
 
 ## Usage
 
-Trigger the skill from an OpenCode session with natural language, for example:
+Trigger the skill from your agent session with natural language, for example:
 
 - "Download Blue Archive Memorial Lobby images to `D:\BA_images`"
 - "Download the Official Introduction images from the gamekee BA wiki"
@@ -195,11 +220,11 @@ Trigger the skill from an OpenCode session with natural language, for example:
 
 Optional parameters (defaults apply if omitted):
 
-| Parameter | Default | Description |
-|---|---|---|
-| `target` | `hydt` | `hydt` = Memorial Lobby ｜ `gfjs` = Official Introduction ｜ `both` = download both |
-| `output_dir` | current working directory | Root directory for downloaded images |
-| `list_url` | `https://www.gamekee.com/ba/second/23941` | Character roster entry point (Implemented Students) |
+| Parameter    | Default                                   | Description                                                                       |
+| ------------ | ----------------------------------------- | --------------------------------------------------------------------------------- |
+| `target`     | `hydt`                                    | `hydt` = Memorial Lobby ｜ `gfjs` = Official Introduction ｜ `both` = download both |
+| `output_dir` | current working directory                 | Root directory for downloaded images                                              |
+| `list_url`   | `https://www.gamekee.com/ba/second/23941` | Character roster entry point (Implemented Students)                               |
 
 The agent handles the full pipeline: scrape roster, extract images per character, download, verify, and retry. The process supports checkpoint resume and re-running to catch failed items. See [`SKILL.md`](./SKILL.md) for details.
 
@@ -223,4 +248,4 @@ The agent handles the full pipeline: scrape roster, extract images per character
 ## Roadmap
 
 - **More image types**: setting art (JP / TW), official art, expressions, etc. (requires album mode: split by `.header-container` text and grab all images in each section)
-- **More servers**: Global / CN / TW
+- **More servers**: Global / CN
