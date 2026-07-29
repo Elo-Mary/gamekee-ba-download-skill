@@ -40,7 +40,7 @@ description: 批量下载 gamekee.com 碧蓝档案(BA)图鉴「实装学生」�
 
 1. `browser_navigate` 到 `list_url`
 2. `browser_wait_for` 等 5 秒（SPA 首屏渲染需要时间，否则 `.item-wrapper` 为空）
-3. `browser_run_code_unsafe` 执行：
+3. `browser_run_code_unsafe` 执行（若返回 `error:'no wrap'`，说明 SPA 首屏渲染失败——`page.reload()` 后再等 5 秒重试，最多 2 次；仍空则报错让 agent 重新 `browser_navigate`，gamekee CDN 偶发不稳）：
    ```js
    async (page) => {
      const data = await page.evaluate(() => {
@@ -56,7 +56,7 @@ description: 批量下载 gamekee.com 碧蓝档案(BA)图鉴「实装学生」�
      return JSON.stringify(data);
    }
    ```
-   → 返回约 267 个 `{id, name}`。list 页的 name 仅交叉校验，**真正文件名在阶段 2 从 title 取**。
+   → 返回约 272 个 `{id, name}`。list 页的 name 仅交叉校验，**真正文件名在阶段 2 从 title 取**。
 
 ### 阶段 2 — 逐角色抽取图片 URL（按 target 切换选择器）
 
@@ -102,7 +102,16 @@ async (page) => {
         h = await poll(5000);
       }
       const title = await page.title();
-      rec.name = title.split('_碧蓝档案')[0];
+      let name = title.split('_碧蓝档案')[0];
+      // ★ 「编辑中」页面：title 前缀带【编辑中】，剥离前缀并标记（见「已知数据特点」）
+      //   实测 id=714029 千秋(泳装) 等 wiki 未完成编辑的角色，title 为「【编辑中】千秋(泳装)_碧蓝档案...」
+      //   这类页面回忆大厅图通常缺失（img.hydt=null，非占位图），官方介绍图可能正常存在。
+      //   不剥离会导致落盘文件名带【编辑中】前缀污染。
+      if(name.startsWith('【编辑中】')){
+        rec.editing = true;
+        name = name.replace(/^【编辑中】/, '').trim();
+      }
+      rec.name = name;
       let url = h ? h.split('?')[0] : null;        // ★ 去掉 webp 转换参数
       if(url && url.indexOf('http')!==0){ url = 'https:'+url; }  // ★ 补协议
       rec.img = url;
@@ -124,9 +133,12 @@ async (page) => {
 ```json
 [
   {"id":"59934","name":"日奈","img":"https://cdnimg-v2.gamekee.com/.../674225.png"},
+  {"id":"714029","name":"千秋(泳装)","img":null,"editing":true},
   ...
 ]
 ```
+
+> **⚠ batch*.json 一律用文件写入工具（Write / write 等）生成或全量重写，不要用 PowerShell 的 `Set-Content`/`Out-File` 修改这些 JSON。** PS 5.1 的 `-Encoding UTF8` 默认带 BOM，BOM 会污染文件头，导致后续基于文本匹配的编辑工具（edit 等）匹配失败报 "No match found"。如需修改 batch JSON，用写入工具整文件重写。PowerShell 的 `-replace` 在复杂 JSON（含引号/反斜杠/Unicode）上转义也极脆弱，切勿用来批量改 JSON。
 
 ### 阶段 4 — PowerShell 批量下载（脚本模板）
 
@@ -192,13 +204,34 @@ foreach($f in $files){
     # 下载到临时文件，按实际内容决定扩展名（CDN 内容协商可能返回与 URL 后缀不同的格式，见约束 7）
     $tmp = Join-Path $dest ($safe + '.tmp')
     try{
-      Invoke-WebRequest -Uri $e.img -Headers $headers -OutFile $tmp -UseBasicParsing -TimeoutSec 120
+      # ★ 下载重试：CDN 偶发超时（见故障排查表），最多 3 次线性退避
+      $dlOk = $false
+      for($dr=0; $dr -lt 3; $dr++){
+        try{
+          Invoke-WebRequest -Uri $e.img -Headers $headers -OutFile $tmp -UseBasicParsing -TimeoutSec 120 -ErrorAction Stop
+          $dlOk = $true; break
+        }catch{
+          if($dr -eq 2){ throw }
+          Start-Sleep -Milliseconds (1000 * ($dr + 1))
+        }
+      }
       $realFmt = Get-ImageFormat $tmp
       if($realFmt){
         # 用 Move-Item -Force（不用 Rename-Item）：实测 PS5.1 的 Rename-Item -Force 不覆盖已存在目标，
         # 而 Move-Item -Force 会覆盖。若前一步 Remove-Item 损坏文件失败导致同名残留，Move 仍能成功。
-        Move-Item -LiteralPath $tmp -Destination (Join-Path $dest ($safe + '.' + $realFmt)) -Force
-        $ok++
+        # ★ Move 重试：杀软实时扫描可能锁定刚写完的 .tmp 句柄，最多 3 次退避（见故障排查表）
+        $destPath = Join-Path $dest ($safe + '.' + $realFmt)
+        $moved = $false
+        for($mr=0; $mr -lt 3; $mr++){
+          try{
+            Move-Item -LiteralPath $tmp -Destination $destPath -Force -ErrorAction Stop
+            $moved = $true; break
+          }catch{
+            if($mr -eq 2){ throw }
+            Start-Sleep -Milliseconds (500 * ($mr + 1))
+          }
+        }
+        if($moved){ $ok++ }
       } else {
         Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
         $fail++; Write-Output "BAD  $safe (无法识别图片格式)"
@@ -227,8 +260,9 @@ Write-Output "OK=$ok SKIP=$skip NULL=$nullc FAIL=$fail REDL=$redl"
 
 1. **完整性校验**：遍历子文件夹，每个文件读首 12 字节验头（`Test-ValidImage` → `Get-ImageFormat`），统计 PNG/JPG/WEBP/BAD 计数。
 2. **文件数核对**：`{子文件夹文件数} == {成功抽取的角色数}`，`0 BAD`，`0 重名`（用 `Group-Object Name` 查重名）。
-3. **重跑 download.ps1**：因 `Test-Path`+`Test-ValidImage` 跳过有效文件，重跑只会补下 NULL/FAIL/损坏的，安全幂等。
-4. **清理测试文件**：阶段验证用的 test PNG、页面截图等临时文件删掉。
+3. **「编辑中」角色核对**：阶段 2 返回的 JSON 里 `editing:true` 的角色，其回忆大厅图通常缺失（`img:null`，wiki 页面尚未完成编辑）——这是 wiki 数据状态，**不是 skill 失败**。`target=hydt` 时这些角色不会落盘文件（正常）；`target=gfjs` 时官方介绍图可能正常下到（文件名已剥离 `【编辑中】` 前缀）。把这些角色名单列给用户，提示「wiki 编辑中，回忆大厅图暂缺，可日后补下」。
+4. **重跑 download.ps1**：因 `Test-Path`+`Test-ValidImage` 跳过有效文件，重跑只会补下 NULL/FAIL/损坏的，安全幂等。
+5. **清理测试文件**：阶段验证用的 test PNG、页面截图等临时文件删掉。
 
 ## 已知数据特点（非 bug，不要误判为失败）
 
@@ -237,6 +271,7 @@ Write-Output "OK=$ok SKIP=$skip NULL=$nullc FAIL=$fail REDL=$redl"
 - list 卡片名与 title 名可能不同：id=86656 卡片写「瞬(小)」，title 是「瞬（幼女）」，落盘按 title 为 `瞬（幼女）.png`（约束 6，更规范）。
 - CDN 内容协商：个别资源 URL 后缀与实际响应格式不一致。实测 267 个里 8 个 png/jpg 后缀互换 + 1 个 webp（律 id=677904，URL `.jpg` 但响应 webp）+ 部分大写 `.JPG`。download.ps1 按 `Get-ImageFormat` 实际内容定扩展名，这些都会被正确识别并落成 `{名}.webp` / `{名}.jpg` 等，**不是失败**。
 - 最小图可能仅 ~64 KB（如艾米临战，wiki 原图就小），不要按文件大小说它是失败的。
+- **「编辑中」角色**（实测 272 个里前 5 个：千秋(泳装) id=714029、真琴(泳装) id=714033、皋月(泳装) id=714037、伊吹(泳装) id=714055、伊吕波(泳装) id=714062）：wiki 页面处于草稿态，`<title>` 为 `【编辑中】<角色名>_碧蓝档案...`。这类页面**回忆大厅图缺失**（`img.hydt` 不存在，返回 null，不是占位图），**官方介绍图可能正常存在**。阶段 2 已剥离 `【编辑中】` 前缀并标记 `editing:true`，落盘文件名不会带污染。`target=hydt` 时这 5 个角色不产出文件是预期行为，不是失败。
 
 ## 故障排查表
 
@@ -250,3 +285,7 @@ Write-Output "OK=$ok SKIP=$skip NULL=$nullc FAIL=$fail REDL=$redl"
 | 同一文件反复 BAD、重跑无法收敛（死循环） | CDN 内容协商返回 webp，旧版 `Test-ValidImage` 只认 PNG/JPG → 删除→重下→仍 webp→仍 BAD | 已修复：`Get-ImageFormat` 识别 WEBP（`RIFF...WEBP`），webp 文件判有效，存为 `.webp` |
 | URL 是 `.png`/`.jpg` 但落盘成了 `.webp` 或后缀互换 | CDN 内容协商，URL 后缀不可信 | 已是预期行为，脚本按实际内容定扩展名，**非 bug** |
 | 下载的图打不开/半截 | 下载中断 | 脚本 `Test-ValidImage` 自动识别并删除重下 |
+| `.tmp file being used by another process`（Move-Item 失败） | 杀软（Windows Defender 等）实时扫描锁定刚写完的 `.tmp` 句柄 | 脚本已内置 3 次退避重试（500ms/1000ms/1500ms）；仍失败的可重跑 download.ps1（幂等，已下的跳过）；频繁出现可将输出目录加入杀软白名单 |
+| CDN 图片下载偶发 `ERR_TIMED_OUT` / 超时 | gamekee CDN 偶发不稳 | 脚本已内置 3 次下载重试（1s/2s 线性退避）；重跑补下失败项 |
+| `edit` 工具改 batch*.json 报 "No match found" | 该 JSON 被 PowerShell `Set-Content` 写过，文件头带 BOM 污染 | 用文件写入工具全量重写该 JSON（见阶段 3 约束）；切勿用 PowerShell 改 batch JSON |
+| 部分角色回忆大厅图缺文件（`img:null`）且 title 含「编辑中」 | wiki 页面草稿态，回忆大厅图尚未上传 | 非失败；文件名已自动剥离 `【编辑中】` 前缀；把这些角色列入「待补下」，日后 wiki 编辑完成再重跑 |
