@@ -1,6 +1,7 @@
 # 本地工具产物
 .codegraph/
 .omo/
+.playwright-mcp/
 
 # 本 skill 运行时输出
 回忆大厅/
