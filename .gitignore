@@ -10,6 +10,9 @@ batches/
 download.ps1
 *.tmp
 
+# 备份文件（工作区约定：修改前复制 *.bkp.N，N 从 1 递增）
+*.bkp.*
+
 # 操作系统 / 编辑器
 .DS_Store
 Thumbs.db
