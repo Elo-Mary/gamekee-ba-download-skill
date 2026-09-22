@@ -9,19 +9,19 @@ description: 批量下载 gamekee.com 碧蓝档案(BA)图鉴「实装学生」�
 
 ## 参数（向用户确认缺失项，有默认值则用默认）
 
-| 参数 | 默认值 | 说明 |
-|---|---|---|
-| `target` | `hydt` | `hydt`=回忆大厅 ｜ `gfjs`=官方介绍 ｜ `lihun`=角色立绘 |
-| `output_dir` | 当前工作目录 | 图片落盘的根目录 |
-| `list_url` | `https://www.gamekee.com/ba/second/23941` | 角色花名册入口（实装学生） |
+| 参数           | 默认值                                       | 说明                                       |
+| ------------ | ----------------------------------------- | ---------------------------------------- |
+| `target`     | `hydt`                                    | `hydt`=回忆大厅 ｜ `gfjs`=官方介绍 ｜ `lihun`=角色立绘 |
+| `output_dir` | 当前工作目录                                    | 图片落盘的根目录                                 |
+| `list_url`   | `https://www.gamekee.com/ba/second/23941` | 角色花名册入口（实装学生）                            |
 
 ## target 获取方式映射表（核心，已实测验证）
 
-| target 值 | 中文名 | 获取方式 | 形态 | 备注 |
-|---|---|---|---|---|
-| `hydt` | 回忆大厅 | `button.action-item` 文本匹配「下载图片」 | 单图 | ★ **按钮下载路线**（与 lihun 共用模板）：进入角色页默认显示回忆大厅图，直接点「下载图片」→ Playwright MCP 自动下载到 `.playwright-mcp/`；不需点「切换立绘」（那是 lihun 才需要的） |
-| `gfjs` | 官方介绍 | `.role-img-box img.item`（取第一个）选择器 | 单图 | `item` 是共享 class，必须取首个 |
-| `lihun` | 角色立绘 | `button.action-item` 文本匹配「切换立绘」「下载图片」 | 单图 | ★ **按钮下载路线**（与 hydt 共用模板）：点击「切换立绘」→ 点击「下载图片」→ Playwright MCP 自动下载到 `.playwright-mcp/`；按键数 **3-5 个因角色而异**（实测：日奈 5 键、泳装 4 键、礼服 3 键），**必须按文本匹配，不可按顺序索引** |
+| target 值 | 中文名  | 获取方式                                  | 形态  | 备注                                                                                                                                                    |
+| -------- | ---- | ------------------------------------- | --- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hydt`   | 回忆大厅 | `button.action-item` 文本匹配「下载图片」       | 单图  | ★ **按钮下载路线**（与 lihun 共用模板）：进入角色页默认显示回忆大厅图，直接点「下载图片」→ Playwright MCP 自动下载到 `.playwright-mcp/`；不需点「切换立绘」（那是 lihun 才需要的）                                 |
+| `gfjs`   | 官方介绍 | `.role-img-box img.item`（取第一个）选择器     | 单图  | `item` 是共享 class，必须取首个                                                                                                                                |
+| `lihun`  | 角色立绘 | `button.action-item` 文本匹配「切换立绘」「下载图片」 | 单图  | ★ **按钮下载路线**（与 hydt 共用模板）：点击「切换立绘」→ 点击「下载图片」→ Playwright MCP 自动下载到 `.playwright-mcp/`；按键数 **3-5 个因角色而异**（实测：日奈 5 键、泳装 4 键、礼服 3 键），**必须按文本匹配，不可按顺序索引** |
 
 > 未来扩展「设定集-日文/繁中」「本家画」「表情」需走图集模式（按 `.header-container` 文本切块取该节区全部 img），暂不覆盖。
 
@@ -42,6 +42,7 @@ description: 批量下载 gamekee.com 碧蓝档案(BA)图鉴「实装学生」�
 1. `browser_navigate` 到 `list_url`
 2. `browser_wait_for` 等 5 秒（SPA 首屏渲染需要时间，否则 `.item-wrapper` 为空）
 3. `browser_run_code_unsafe` 执行（若返回 `error:'no wrap'`，说明 SPA 首屏渲染失败——`page.reload()` 后再等 5 秒重试，最多 2 次；仍空则报错让 agent 重新 `browser_navigate`，gamekee CDN 偶发不稳）：
+   
    ```js
    async (page) => {
      const data = await page.evaluate(() => {
@@ -57,6 +58,7 @@ description: 批量下载 gamekee.com 碧蓝档案(BA)图鉴「实装学生」�
      return JSON.stringify(data);
    }
    ```
+   
    → 返回约 272 个 `{id, name}`。list 页的 name 仅交叉校验，**真正文件名在阶段 2 从 title 取**。
 
 ### 阶段 2 — 逐角色抽取图片（按 target 切换方式）
@@ -122,6 +124,7 @@ async (page) => {
 ```
 
 要点：
+
 - 返回的 JSON 中 `img:null` 的角色（偶发未渲染）收集起来，全部批次跑完后**统一二次重试**（同样的 goto+poll，可加一次 reload 兜底）。实测约 5/272 会偶发 null，重试基本都能成功。
 - 角色名含 `*` 等非法字符（如「白子*恐怖」）由阶段 4 脚本统一转义，这里原样保留。
 
@@ -194,6 +197,7 @@ async (page) => {
 ```
 
 要点（hydt/lihun 共用）：
+
 - hydt 每个角色约 5.5s（导航 3.5s + 下载 2s），lihun 约 8s（多切立绘 2.5s），12 个/批约 1-1.5 分钟，不超时。
 - **每批结束后立即移走 `.playwright-mcp/` 里的文件**（见阶段 3 落盘说明），避免下批文件混淆。移走后 agent 在新会话或下批开始前清理 `.playwright-mcp/` 残留。
 - `downloadFile` 是数字 ID 文件名（如 `291700.png`），**不是角色名**——agent 必须按 `name` 字段改名落盘。
@@ -205,6 +209,7 @@ async (page) => {
 每批返回的 JSON 写入 `batches/batchNN.json` 文件（每文件一批，NN 从 01 起）。结构因 target 而异：
 
 gfjs 路线：
+
 ```json
 [
   {"id":"59934","name":"日奈","img":"https://cdnimg-v2.gamekee.com/.../674225.png"},
@@ -214,6 +219,7 @@ gfjs 路线：
 ```
 
 hydt/lihun 路线：
+
 ```json
 [
   {"id":"59934","name":"日奈","downloadFile":"291700.png"},
@@ -227,6 +233,7 @@ hydt/lihun 路线：
 ### 阶段 4 — PowerShell 批量下载（脚本模板，仅 gfjs 使用）
 
 在 `output_dir` 下建子文件夹：
+
 - `gfjs` → `{output_dir}/官方介绍/`
 
 把下面脚本存为 `download.ps1`（**必须 UTF-8 with BOM**，见约束 3）。脚本零硬编码，全部通过 `param()` 显式传参，调用方式见脚本下方：
@@ -373,20 +380,20 @@ hydt 和 lihun 的图片已在阶段 2 由 Playwright MCP 自动下载到 `.play
 
 ## 故障排查表
 
-| 症状 | 原因 | 修复 |
-|---|---|---|
-| PowerShell 全部 FAIL「路径不存在」 | `.ps1` 没 BOM，PS 5.1 按 GBK 解析中文路径 | 给 `.ps1` 补 UTF-8 BOM（`EF BB BF`） |
-| 单批 `browser_run_code_unsafe` MCP 超时 (~10min) | batch_size 太大，单页慢加载拖垮整批 | 先试 12 个/批；**仍超时降 6**，拆批存为 `batchNNa.json`/`batchNNb.json`，`batch*.json` glob 自动覆盖 |
-| 部分角色 `img:null` | SPA 偶发未渲染子标签内容 | 收集起来批次结束后统一二次重试（goto+poll，可加 reload） |
-| PowerShell 直请 content JSON 返回 567 | Tencent EdgeOne WAF 拦 api-cdn host | 别走 JSON 捷径，老老实实浏览器抽 img.src |
-| 页面内 `fetch(api-cdn...)` 报 Failed to fetch | 同源/CORS 拦截 | 同上，不 fetch，用 DOM 读 img.src |
-| 同一文件反复 BAD、重跑无法收敛（死循环） | CDN 内容协商返回 webp，旧版 `Test-ValidImage` 只认 PNG/JPG → 删除→重下→仍 webp→仍 BAD | 已修复：`Get-ImageFormat` 识别 WEBP（`RIFF...WEBP`），webp 文件判有效，存为 `.webp` |
-| URL 是 `.png`/`.jpg` 但落盘成了 `.webp` 或后缀互换 | CDN 内容协商，URL 后缀不可信 | 已是预期行为，脚本按实际内容定扩展名，**非 bug** |
-| 下载的图打不开/半截 | 下载中断 | 脚本 `Test-ValidImage` 自动识别并删除重下 |
-| `.tmp file being used by another process`（Move-Item 失败） | 杀软（Windows Defender 等）实时扫描锁定刚写完的 `.tmp` 句柄 | 脚本已内置 3 次退避重试（500ms/1000ms/1500ms）；仍失败的可重跑 download.ps1（幂等，已下的跳过）；频繁出现可将输出目录加入杀软白名单 |
-| CDN 图片下载偶发 `ERR_TIMED_OUT` / 超时 | gamekee CDN 偶发不稳 | 脚本已内置 3 次下载重试（1s/2s 线性退避）；重跑补下失败项 |
-| `edit` 工具改 batch*.json 报 "No match found" | 该 JSON 被 PowerShell `Set-Content` 写过，文件头带 BOM 污染 | 用文件写入工具全量重写该 JSON（见阶段 3 约束）；切勿用 PowerShell 改 batch JSON |
-| 部分角色回忆大厅图缺文件且 title 含「编辑中」 | wiki 页面草稿态 | 非失败；文件名已自动剥离 `【编辑中】` 前缀；把这些角色列入「待补下」，日后 wiki 编辑完成再重跑 |
-| hydt/lihun 模式 `downloadFile:null` | 下载按钮未触发 / hook 失败 / SPA 冷缓存未渲染 | 收集起来批次结束后统一二次重试（重新 goto+下载）；编辑中角色也有下载按钮，不要因 `editing:true` 跳过 |
-| hydt/lihun 下载的文件在 `.playwright-mcp/` 找不到 | Playwright MCP 下载目录配置改变 / 文件被杀软拦截 | 检查 `.playwright-mcp/` 目录是否存在且有新文件；确认 Playwright MCP 的 `--browser` 进程未崩溃 |
-| hydt/lihun 批次间文件混淆 | 上一批的 `.playwright-mcp/` 文件未清理 | **每批处理完后立即移走并清理 `.playwright-mcp/`**，见阶段 3 落盘说明 |
+| 症状                                                      | 原因                                                                   | 修复                                                                                  |
+| ------------------------------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| PowerShell 全部 FAIL「路径不存在」                               | `.ps1` 没 BOM，PS 5.1 按 GBK 解析中文路径                                     | 给 `.ps1` 补 UTF-8 BOM（`EF BB BF`）                                                    |
+| 单批 `browser_run_code_unsafe` MCP 超时 (~10min)            | batch_size 太大，单页慢加载拖垮整批                                              | 先试 12 个/批；**仍超时降 6**，拆批存为 `batchNNa.json`/`batchNNb.json`，`batch*.json` glob 自动覆盖   |
+| 部分角色 `img:null`                                         | SPA 偶发未渲染子标签内容                                                       | 收集起来批次结束后统一二次重试（goto+poll，可加 reload）                                                |
+| PowerShell 直请 content JSON 返回 567                       | Tencent EdgeOne WAF 拦 api-cdn host                                   | 别走 JSON 捷径，老老实实浏览器抽 img.src                                                         |
+| 页面内 `fetch(api-cdn...)` 报 Failed to fetch               | 同源/CORS 拦截                                                           | 同上，不 fetch，用 DOM 读 img.src                                                          |
+| 同一文件反复 BAD、重跑无法收敛（死循环）                                  | CDN 内容协商返回 webp，旧版 `Test-ValidImage` 只认 PNG/JPG → 删除→重下→仍 webp→仍 BAD | 已修复：`Get-ImageFormat` 识别 WEBP（`RIFF...WEBP`），webp 文件判有效，存为 `.webp`                  |
+| URL 是 `.png`/`.jpg` 但落盘成了 `.webp` 或后缀互换                 | CDN 内容协商，URL 后缀不可信                                                   | 已是预期行为，脚本按实际内容定扩展名，**非 bug**                                                        |
+| 下载的图打不开/半截                                              | 下载中断                                                                 | 脚本 `Test-ValidImage` 自动识别并删除重下                                                      |
+| `.tmp file being used by another process`（Move-Item 失败） | 杀软（Windows Defender 等）实时扫描锁定刚写完的 `.tmp` 句柄                           | 脚本已内置 3 次退避重试（500ms/1000ms/1500ms）；仍失败的可重跑 download.ps1（幂等，已下的跳过）；频繁出现可将输出目录加入杀软白名单 |
+| CDN 图片下载偶发 `ERR_TIMED_OUT` / 超时                         | gamekee CDN 偶发不稳                                                     | 脚本已内置 3 次下载重试（1s/2s 线性退避）；重跑补下失败项                                                   |
+| `edit` 工具改 batch*.json 报 "No match found"               | 该 JSON 被 PowerShell `Set-Content` 写过，文件头带 BOM 污染                     | 用文件写入工具全量重写该 JSON（见阶段 3 约束）；切勿用 PowerShell 改 batch JSON                             |
+| 部分角色回忆大厅图缺文件且 title 含「编辑中」                              | wiki 页面草稿态                                                           | 非失败；文件名已自动剥离 `【编辑中】` 前缀；把这些角色列入「待补下」，日后 wiki 编辑完成再重跑                                |
+| hydt/lihun 模式 `downloadFile:null`                       | 下载按钮未触发 / hook 失败 / SPA 冷缓存未渲染                                       | 收集起来批次结束后统一二次重试（重新 goto+下载）；编辑中角色也有下载按钮，不要因 `editing:true` 跳过                       |
+| hydt/lihun 下载的文件在 `.playwright-mcp/` 找不到                | Playwright MCP 下载目录配置改变 / 文件被杀软拦截                                    | 检查 `.playwright-mcp/` 目录是否存在且有新文件；确认 Playwright MCP 的 `--browser` 进程未崩溃             |
+| hydt/lihun 批次间文件混淆                                      | 上一批的 `.playwright-mcp/` 文件未清理                                        | **每批处理完后立即移走并清理 `.playwright-mcp/`**，见阶段 3 落盘说明                                     |
