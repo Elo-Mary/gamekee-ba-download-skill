@@ -27,13 +27,15 @@ description: 批量下载 gamekee.com 碧蓝档案(BA)图鉴「实装学生」�
 
 ## 关键约束（踩坑实证，不可违反）
 
-1. **MCP 浏览器进程完全沙箱化**：`browser_run_code_unsafe` 里没有 `require`/`process`/`global`，不能 `import('node:fs')`，`navigator.clipboard` 是 undefined。**数据通道有两条**：(a) 该函数的 return 字符串（gfjs 用——返回 URL JSON → PowerShell 下载）；(b) Playwright MCP 的浏览器下载自动保存到 `.playwright-mcp/`（hydt/lihun 用——点击下载按钮后图片自动落到此目录，agent 再移动改名）。
+> **执行环境说明**：以下约束 1-5 基于本 skill 在 Playwright MCP 工具链（`browser_run_code_unsafe` / `browser_navigate` 等）上的实测。若使用其他浏览器自动化工具（如 IAB API、Puppeteer 直驱等），批大小/超时/下载目录/hook 机制需按实际工具重新标定——见文末「附录：非 Playwright MCP 环境适配」。
+
+1. **MCP 浏览器进程完全沙箱化**（Playwright MCP 环境）：`browser_run_code_unsafe` 里没有 `require`/`process`/`global`，不能 `import('node:fs')`，`navigator.clipboard` 是 undefined。**数据通道有两条**：(a) 该函数的 return 字符串（gfjs 用——返回 URL JSON → PowerShell 下载）；(b) Playwright MCP 的浏览器下载自动保存到 `.playwright-mcp/`（hydt/lihun 用——点击下载按钮后图片自动落到此目录，agent 再移动改名）。
 2. **content JSON 走不通捷径**（gfjs 路线）：`api-cdn.gamekee.com/wiki2.0/pro/829/content/{id}.json` 被 Tencent EdgeOne WAF 拦（PowerShell 直请返回 567；页面内 `fetch` 被 CORS 拦）。但**图片 host `cdnimg-v2.gamekee.com` 不拦**——只能「浏览器跑 JS 拿 img.src → PowerShell 下载图」，无法走「读 API JSON 解析图 URL」。（hydt/lihun 路线不涉及此问题——图片是页面 JS 生成的 blob，不从 CDN 拉。）
 3. **PowerShell 5.1 编码**：含中文字面量（路径名、`官方介绍`）的 `.ps1` 脚本**必须存成 UTF-8 with BOM**，否则 PS 5.1 按 GBK 解析，中文路径变乱码，所有下载报「路径不存在」。用 `[IO.File]::ReadAllBytes` 检测后 prepend `EF BB BF` 可补 BOM。
-4. **批大小默认 12，仍超时降 6**：实测 15 个角色/批会因单个页面慢加载把单次 MCP 调用拖到 10 分钟超时。12 是大多数时段稳定上限。**若 12 仍触发 MCP 超时**（服务端负载时段波动会导致），降为 6 个/批；拆批结果存为 `batchNNa.json` / `batchNNb.json`，download.ps1 的 `batch*.json` 通配符自动覆盖，无需改脚本。（gfjs 路线适用；hydt/lihun 路线每批约 1.5 分钟，不涉及此问题。）
+4. **批大小默认 12，仍超时降 6**（Playwright MCP 环境，gfjs 路线）：实测 15 个角色/批会因单个页面慢加载把单次 MCP 调用拖到 10 分钟超时。12 是大多数时段稳定上限。**若 12 仍触发 MCP 超时**（服务端负载时段波动会导致），降为 6 个/批；拆批结果存为 `batchNNa.json` / `batchNNb.json`，download.ps1 的 `batch*.json` 通配符自动覆盖，无需改脚本。（hydt/lihun 路线每批约 1.5 分钟，不涉及此问题。）
 5. **图片 URL 清洗**（gfjs 路线）：页面 `img.src` 含 `?x-image-process=.../format,webp` 转换参数，**必须 `src.split('?')[0]`** 去掉转换参数；头部补 `https:`（页面里是 `//cdnimg-v2...` 协议相对 URL）。**注意：`split('?')[0]` 不保证拿到原始格式**——CDN 对个别资源做内容协商（content negotiation），无论 URL 带不带 webp 参数，响应体本身可能是 webp（实测 id=677904 律的 URL 是 `.jpg` 但响应是 webp）。脚本必须兼容 PNG/JPG/WEBP 三种格式，不能假设「去参数 = 原始 PNG/JPG」。（hydt/lihun 路线下载的总是 PNG，不涉及 URL 清洗和格式判定问题。）
 6. **文件名取自 `<title>` 而非 list 页卡片名**：`page.title().split('_碧蓝档案')[0]`。list 页用半角括号，title 用全角括号，后者更规范。例：id=86656 list 卡片名「瞬(小)」，title 是「瞬（幼女）」，落盘为 `瞬（幼女）.png`。
-7. **扩展名按下载后实际文件头决定，不按 URL 后缀**（gfjs 路线）：CDN 内容协商会导致 URL 后缀与实际格式不一致（实测 272 个里 8 个 png/jpg 后缀互换 + 1 个 webp，共 9 个错配；另有 URL 大写 `.JPG` 的情况）。download.ps1 下载到临时文件后读首 12 字节判定真实格式（`Get-ImageFormat`），再改名成正确扩展名，**完全不依赖 URL 后缀**。（hydt/lihun 路线下载的总是 PNG，不涉及此问题。）
+7. **扩展名按下载后实际文件头决定，不按 URL 后缀**（gfjs 路线）：CDN 内容协商会导致 URL 后缀与实际格式不一致（实测约 275+ 个里 8 个 png/jpg 后缀互换 + 1 个 webp，共 9 个错配；另有 URL 大写 `.JPG` 的情况）。download.ps1 下载到临时文件后读首 12 字节判定真实格式（`Get-ImageFormat`），再改名成正确扩展名，**完全不依赖 URL 后缀**。（hydt/lihun 路线下载的总是 PNG，不涉及此问题。）
 
 ## 完整流程
 
@@ -59,7 +61,7 @@ description: 批量下载 gamekee.com 碧蓝档案(BA)图鉴「实装学生」�
    }
    ```
    
-   → 返回约 272 个 `{id, name}`。list 页的 name 仅交叉校验，**真正文件名在阶段 2 从 title 取**。
+   → 返回约 275+ 个 `{id, name}`（wiki 持续增长，基数会漂移；原实测 272，2025年已 277+）。list 页的 name 仅交叉校验，**真正文件名在阶段 2 从 title 取**。
 
 ### 阶段 2 — 逐角色抽取图片（按 target 切换方式）
 
@@ -125,7 +127,7 @@ async (page) => {
 
 要点：
 
-- 返回的 JSON 中 `img:null` 的角色（偶发未渲染）收集起来，全部批次跑完后**统一二次重试**（同样的 goto+poll，可加一次 reload 兜底）。实测约 5/272 会偶发 null，重试基本都能成功。
+- 返回的 JSON 中 `img:null` 的角色（偶发未渲染）收集起来，全部批次跑完后**统一二次重试**（同样的 goto+poll，可加一次 reload 兜底）。实测约 5/275+ 会偶发 null，重试基本都能成功。
 - 角色名含 `*` 等非法字符（如「白子*恐怖」）由阶段 4 脚本统一转义，这里原样保留。
 
 #### `target=hydt` / `target=lihun` 共用模板（按钮下载路线）
@@ -166,6 +168,9 @@ async (page) => {
         await page.waitForTimeout(2500);  // 等立绘渲染
       }
       // ★ hook a.click 捕获 download 文件名，然后点「下载图片」
+      //   此 hook 在 Playwright MCP 环境必需——MCP 只 return 字符串，无法直接捕获下载事件对象。
+      //   若你的执行环境支持下载事件 API（如 Playwright 原生 page.waitForEvent('download')），
+      //   可跳过此 hook，直接用 downloadEvent.path() 获取落盘路径，更可靠且无 hook 失败风险。
       await page.evaluate(() => {
         window.__dlFile = null;
         const origClick = HTMLAnchorElement.prototype.click;
@@ -199,7 +204,7 @@ async (page) => {
 要点（hydt/lihun 共用）：
 
 - hydt 每个角色约 5.5s（导航 3.5s + 下载 2s），lihun 约 8s（多切立绘 2.5s），12 个/批约 1-1.5 分钟，不超时。
-- **每批结束后立即移走 `.playwright-mcp/` 里的文件**（见阶段 3 落盘说明），避免下批文件混淆。移走后 agent 在新会话或下批开始前清理 `.playwright-mcp/` 残留。
+- **每批结束后立即移走下载目录里的文件**（见阶段 3 落盘说明），避免下批文件混淆。移走后 agent 在新会话或下批开始前清理下载目录残留。（Playwright MCP 的下载目录为 `.playwright-mcp/`；其他浏览器工具的下载目录见附录。）
 - `downloadFile` 是数字 ID 文件名（如 `291700.png`），**不是角色名**——agent 必须按 `name` 字段改名落盘。
 - `downloadFile:null` 表示下载按钮没触发或 hook 失败，收集起来批次结束后统一二次重试。
 - 「编辑中」角色的下载按钮**通常正常存在**（实测 id=714029 千秋泳装有 4 个按钮且成功下载立绘）——hydt 和 lihun 都能正常下载，不要因 `editing:true` 就跳过。
@@ -372,9 +377,9 @@ hydt 和 lihun 的图片已在阶段 2 由 Playwright MCP 自动下载到 `.play
 - `瞬（泳装）` 与 `雪玲（泳装）` 的回忆大厅图在 wiki 上**本就是同一张**（MD5 相同），各自保存一份符合预期。
 - 联动 4 角色（初音未来 / 御坂美琴 / 食蜂操祈 / 佐天泪子）也有回忆大厅和官方介绍图，不要当特例排除。
 - list 卡片名与 title 名可能不同：id=86656 卡片写「瞬(小)」，title 是「瞬（幼女）」，落盘按 title 为 `瞬（幼女）.png`（约束 6，更规范）。
-- CDN 内容协商（gfjs 路线）：个别资源 URL 后缀与实际响应格式不一致。实测 272 个里 8 个 png/jpg 后缀互换 + 1 个 webp（律 id=677904，URL `.jpg` 但响应 webp）+ 部分大写 `.JPG`。download.ps1 按 `Get-ImageFormat` 实际内容定扩展名，这些都会被正确识别并落成 `{名}.webp` / `{名}.jpg` 等，**不是失败**。hydt/lihun 路线下载的总是 PNG，不涉及此问题。
+- CDN 内容协商（gfjs 路线）：个别资源 URL 后缀与实际响应格式不一致。实测约 275+ 个里 8 个 png/jpg 后缀互换 + 1 个 webp（律 id=677904，URL `.jpg` 但响应 webp）+ 部分大写 `.JPG`（错配数是历史实测，不随基数增长变化）。download.ps1 按 `Get-ImageFormat` 实际内容定扩展名，这些都会被正确识别并落成 `{名}.webp` / `{名}.jpg` 等，**不是失败**。hydt/lihun 路线下载的总是 PNG，不涉及此问题。
 - 最小图可能仅 ~64 KB（如艾米临战，wiki 原图就小），不要按文件大小说它是失败的。
-- **「编辑中」角色**（实测 272 个里前 5 个：千秋(泳装) id=714029、真琴(泳装) id=714033、皋月(泳装) id=714037、伊吹(泳装) id=714055、伊吕波(泳装) id=714062）：wiki 页面处于草稿态，`<title>` 为 `【编辑中】<角色名>_碧蓝档案...`。阶段 2 已剥离 `【编辑中】` 前缀并标记 `editing:true`，落盘文件名不会带污染。**官方介绍图（gfjs）可能正常存在；回忆大厅图（hydt）和角色立绘（lihun）也通常正常**（实测编辑中角色 714029 有下载按钮且成功下载）。
+- **「编辑中」角色**（实测前 5 个：千秋(泳装) id=714029、真琴(泳装) id=714033、皋月(泳装) id=714037、伊吹(泳装) id=714055、伊吕波(泳装) id=714062；wiki 持续增长，编辑中角色可能增减）：wiki 页面处于草稿态，`<title>` 为 `【编辑中】<角色名>_碧蓝档案...`。阶段 2 已剥离 `【编辑中】` 前缀并标记 `editing:true`，落盘文件名不会带污染。**官方介绍图（gfjs）可能正常存在；回忆大厅图（hydt）和角色立绘（lihun）也通常正常**（实测编辑中角色 714029 有下载按钮且成功下载）。
 - **hydt/lihun 下载文件名是数字 ID**（如 `291700.png`），不是角色名——这是 gamekee 美术资源 ID。agent 必须按 `name` 字段（从 `<title>` 取）改名落盘。实测日奈 id=59934 下载文件名 `291700.png`，agent 改名为 `日奈.png`。
 - **hydt/lihun 按键文本跨角色一致**：实测日奈/日奈泳装/日奈礼服 3 个角色，「切换立绘」和「下载图片」两个按钮的文本完全相同（`button.action-item`，textContent 精确匹配）。但**按键总数 3-5 个因角色而异**（日奈 5 键含「切换时装」「切换动作」、泳装 4 键、礼服 3 键），必须用 `.find(b => textContent === '切换立绘')` 文本匹配，**不可按索引**（如 `btns[2]`）定位。
 
@@ -397,3 +402,23 @@ hydt 和 lihun 的图片已在阶段 2 由 Playwright MCP 自动下载到 `.play
 | hydt/lihun 模式 `downloadFile:null`                       | 下载按钮未触发 / hook 失败 / SPA 冷缓存未渲染                                       | 收集起来批次结束后统一二次重试（重新 goto+下载）；编辑中角色也有下载按钮，不要因 `editing:true` 跳过                       |
 | hydt/lihun 下载的文件在 `.playwright-mcp/` 找不到                | Playwright MCP 下载目录配置改变 / 文件被杀软拦截                                    | 检查 `.playwright-mcp/` 目录是否存在且有新文件；确认 Playwright MCP 的 `--browser` 进程未崩溃             |
 | hydt/lihun 批次间文件混淆                                      | 上一批的 `.playwright-mcp/` 文件未清理                                        | **每批处理完后立即移走并清理 `.playwright-mcp/`**，见阶段 3 落盘说明                                     |
+
+## 附录：非 Playwright MCP 环境适配
+
+本 skill 的领域知识（选择器、按钮文本、title 取名、坑点）与执行工具无关，全部实测有效。但执行层（工具名、循环模式、下载目录、hook 机制）假设了 Playwright MCP（`browser_run_code_unsafe` 等）。若你的 agent 平台使用其他浏览器自动化工具，以下 4 点需适配：
+
+### 1. 循环模式
+
+Playwright MCP 的 `browser_run_code_unsafe` 在**单次调用内拿到 page 对象**跑完整个 12 角色循环。其他工具（如 IAB API、Puppeteer evaluate）可能是**每次 JS 调用全新上下文 + 单次时间上限**（如 3 秒）。此时改为逐角色调用：每次 `goto → 等 3.5s → 点按钮 → 下载`，单角色约 5-8 秒。批大小需按实际工具的单次调用时间上限重新标定。
+
+### 2. 下载文件名捕获
+
+Playwright MCP 只 return 字符串，拿不到下载事件对象，所以用 `window.__dlFile` a.click hook 捕获文件名。若你的环境支持下载事件 API（如 Playwright 原生 `page.waitForEvent('download')`，或 IAB 的 `waitForEvent("download")`），**跳过 hook，直接用 `downloadEvent.path()` 获取落盘路径**——更可靠且少一个失败点（hook 失败 → `downloadFile:null` → 需重试）。
+
+### 3. 下载目录
+
+Playwright MCP 自动存到 `.playwright-mcp/`。其他浏览器工具存到各自默认下载目录（如浏览器下载路径），文件名是数字 ID（如 `291700.png`）。agent 仍按 `name` 字段改名落盘，源路径改为实际下载路径。
+
+### 4. 落盘改名
+
+阶段 3-4 的落盘改名为 PowerShell 路线（download.ps1，需 UTF-8 BOM）。若不使用 PowerShell（如用 Node 脚本读写文件），中文名无 BOM 问题，直接 `fs.renameSync(srcPath, destPath)` 或 `fs.copyFileSync` + `fs.unlinkSync` 即可。
