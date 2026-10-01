@@ -37,8 +37,8 @@ description: 批量下载 gamekee.com 碧蓝档案(BA)图鉴「实装学生」�
 4. **批大小**（Playwright MCP 环境）：`browser_run_code_unsafe` 单次调用的 MCP 超时阈值约 60-90 秒。各路线的安全批大小不同：
    - **gfjs 路线**：默认 12 个/批。若超时降为 6。拆批结果存为 `batchNNa.json` / `batchNNb.json`，download.ps1 的 `batch*.json` 通配符自动覆盖，无需改脚本。
    - **hydt/lihun 路线**：**默认 5 个/批**（hydt 每角色约 5.5s × 5 = 28s；lihun 约 8s × 5 = 40s，均在 MCP 超时内）。12 个会超时（hydt 12×5.5s=66s，lihun 12×8s=96s，均逼近或超过 MCP 60-90s 上限）。若仍超时降为 3。
-5. **图片 URL 清洗**（gfjs 路线）：页面 `img.src` 含 `?x-image-process=.../format,webp` 转换参数，**必须 `src.split('?')[0]`** 去掉转换参数；头部补 `https:`（页面里是 `//cdnimg-v2...` 协议相对 URL）。**注意：`split('?')[0]` 不保证拿到原始格式**——CDN 对个别资源做内容协商（content negotiation），无论 URL 带不带 webp 参数，响应体本身可能是 webp（实测 id=677904 律的 URL 是 `.jpg` 但响应是 webp）。脚本必须兼容 PNG/JPG/WEBP 三种格式，不能假设「去参数 = 原始 PNG/JPG」。（hydt/lihun 路线下载的总是 PNG，不涉及 URL 清洗和格式判定问题。）
-6. **文件名取自 `<title>` 而非 list 页卡片名**：`page.title().split('_碧蓝档案')[0]`。list 页用半角括号，title 用全角括号，后者更规范。例：id=86656 list 卡片名「瞬(小)」，title 是「瞬（幼女）」，落盘为 `瞬（幼女）.png`。
+5. **图片 URL 清洗**（gfjs 路线）：页面 `img.src` 含 `?x-image-process=.../format,webp` 转换参数，**必须 `src.split('?')[0]`** 去掉转换参数；头部补 `https:`（页面里是 `//cdnimg-v2...` 协议相对 URL）。**注意：`split('?')[0]` 不保证拿到原始格式**——CDN 对个别资源做内容协商（content negotiation），无论 URL 带不带 webp 参数，响应体本身可能是 webp（历史实测：个别角色 URL 是 `.jpg` 但响应是 webp）。脚本必须兼容 PNG/JPG/WEBP 三种格式，不能假设「去参数 = 原始 PNG/JPG」。（hydt/lihun 路线下载的总是 PNG，不涉及 URL 清洗和格式判定问题。）
+6. **文件名取自 `<title>` 而非 list 页卡片名**：`page.title().split('_碧蓝档案')[0]`。list 页用半角括号，title 用全角括号，后者更规范。例：历史实测中某角色 list 卡片名用半角括号、title 用全角括号，落盘按 title 更规范。
 7. **扩展名按下载后实际文件头决定，不按 URL 后缀**（gfjs 路线）：CDN 内容协商会导致 URL 后缀与实际格式不一致（实测约 275+ 个里 8 个 png/jpg 后缀互换 + 1 个 webp，共 9 个错配；另有 URL 大写 `.JPG` 的情况）。download.ps1 下载到临时文件后读首 12 字节判定真实格式（`Get-ImageFormat`），再改名成正确扩展名，**完全不依赖 URL 后缀**。（hydt/lihun 路线下载的总是 PNG，不涉及此问题。）
 
 ## 完整流程
@@ -112,7 +112,7 @@ async (page) => {
       const title = await page.title();
       let name = title.split('_碧蓝档案')[0];
       // ★ 「编辑中」页面：title 前缀带【编辑中】，剥离前缀并标记（见「已知数据特点」）
-      //   实测 id=714029 千秋(泳装) 等 wiki 未完成编辑的角色，title 为「【编辑中】千秋(泳装)_碧蓝档案...」
+      //   历史实测：个别 wiki 未完成编辑的角色，title 为「【编辑中】<角色名>_碧蓝档案...」
       //   这类页面官方介绍图可能正常存在。不剥离会导致落盘文件名带【编辑中】前缀污染。
       if(name.startsWith('【编辑中】')){
         rec.editing = true;
@@ -132,7 +132,7 @@ async (page) => {
 要点：
 
 - 返回的 JSON 中 `img:null` 的角色（偶发未渲染）收集起来，全部批次跑完后**统一二次重试**（同样的 goto+poll，可加一次 reload 兜底）。实测约 5/275+ 会偶发 null，重试基本都能成功。
-- 角色名含 `*` 等非法字符（如「白子*恐怖」）由阶段 4 脚本统一转义，这里原样保留。
+- 角色名含 `*` 等非法字符（如含特殊符号的皮肤名）由阶段 4 脚本统一转义，这里原样保留。
 
 #### `target=hydt` / `target=lihun` 共用模板（按钮下载路线）
 
@@ -219,7 +219,7 @@ async (page) => {
 - **每批结束后立即移走下载目录里的文件**（见阶段 3 落盘说明），避免下批文件混淆。移走后 agent 在新会话或下批开始前清理下载目录残留。（Playwright MCP 的下载目录为 `.playwright-mcp/`；其他浏览器工具的下载目录见附录。）
 - `downloadFile` 是数字 ID 文件名（如 `291700.png`），**不是角色名**——agent 必须按 `name` 字段改名落盘。
 - `downloadFile:null` 表示下载按钮没触发或 hook 失败，收集起来批次结束后统一二次重试。
-- 「编辑中」角色的下载按钮**通常正常存在**（实测 id=714029 千秋泳装有 4 个按钮且成功下载立绘）——hydt 和 lihun 都能正常下载，不要因 `editing:true` 就跳过。
+- 「编辑中」角色的下载按钮**通常正常存在**（历史实测编辑中角色有下载按钮且成功下载）——hydt 和 lihun 都能正常下载，不要因 `editing:true` 就跳过。
 
 ### 阶段 3 — 浏览器→文件系统桥
 
@@ -230,7 +230,7 @@ gfjs 路线：
 ```json
 [
   {"id":"59934","name":"日奈","img":"https://cdnimg-v2.gamekee.com/.../674225.png"},
-  {"id":"714029","name":"千秋(泳装)","img":null,"editing":true},
+  {"id":"XXXXX","name":"某角色(泳装)","img":null,"editing":true},
   ...
 ]
 ```
@@ -240,7 +240,7 @@ hydt/lihun 路线：
 ```json
 [
   {"id":"59934","name":"日奈","downloadFile":"291700.png"},
-  {"id":"714029","name":"千秋(泳装)","downloadFile":"41023487ms66n3ox.png","editing":true},
+  {"id":"XXXXX","name":"某角色(泳装)","downloadFile":"NNNNN.png","editing":true},
   ...
 ]
 ```
@@ -294,7 +294,7 @@ foreach($f in $files){
   $arr = Get-Content $f.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
   foreach($e in $arr){
     $name = $e.name; if(-not $name){$name=$e.id}
-    $safe = ($name -replace '[\\/:*?"<>|]','_').Trim()   # 非法字符→_，如「白子*恐怖」→「白子_恐怖」
+    $safe = ($name -replace '[\\/:*?"<>|]','_').Trim()   # 非法字符→_，如含 * 的角色名→ _ 替代
     if(-not $e.img){ $nullc++; continue }
     # 跳过检查：该名字任意扩展名的有效文件已存在则跳过（扩展名按实际内容定，不靠 URL 后缀）
     $existing = @('png','jpg','webp') | ForEach-Object {
@@ -380,21 +380,21 @@ hydt 和 lihun 的图片已在阶段 2 由 Playwright MCP 自动下载到 `.play
 
 1. **完整性校验**：遍历子文件夹，每个文件读首 12 字节验头（`Test-ValidImage` → `Get-ImageFormat`），统计 PNG/JPG/WEBP/BAD 计数。
 2. **文件数核对**：`{子文件夹文件数} == {成功抽取的角色数}`，`0 BAD`，`0 重名`（用 `Group-Object Name` 查重名）。
-3. **「编辑中」角色核对**：阶段 2 返回的 JSON 里 `editing:true` 的角色，wiki 页面尚未完成编辑——这是 wiki 数据状态，**不是 skill 失败**。`target=gfjs` 时官方介绍图可能正常下到；`target=hydt`/`target=lihun` 时下载按钮通常正常存在（实测编辑中角色 714029 有 4 个按钮且成功下载）。把这些角色名单列给用户，提示「wiki 编辑中，可日后补下」。
+3. **「编辑中」角色核对**：阶段 2 返回的 JSON 里 `editing:true` 的角色，wiki 页面尚未完成编辑——这是 wiki 数据状态，**不是 skill 失败**。`target=gfjs` 时官方介绍图可能正常下到；`target=hydt`/`target=lihun` 时下载按钮通常正常存在（历史实测编辑中角色有下载按钮且成功下载）。把这些角色名单列给用户，提示「wiki 编辑中，可日后补下」。
 4. **重跑 download.ps1**（gfjs 路线）：因 `Test-Path`+`Test-ValidImage` 跳过有效文件，重跑只会补下 NULL/FAIL/损坏的，安全幂等。hydt/lihun 路线的重试是重新跑阶段 2 模板（按钮下载）。
 5. **清理测试文件**：阶段验证用的 test PNG、页面截图等临时文件删掉。
 6. **校验注意**：PowerShell 控制台在 Windows 下默认 GBK 输出，中文文件名会显示成 `?????.png`。**校验文件列表时用 UTF-8 工具（如 read / Get-ChildItem 管道到文件再用 read 读），别靠 PowerShell 控制台肉眼看**。或在脚本开头加 `[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()` 修正输出编码。
 
 ## 已知数据特点（非 bug，不要误判为失败）
 
-- `瞬（泳装）` 与 `雪玲（泳装）` 的回忆大厅图在 wiki 上**本就是同一张**（MD5 相同），各自保存一份符合预期。
-- 联动 4 角色（初音未来 / 御坂美琴 / 食蜂操祈 / 佐天泪子）也有回忆大厅和官方介绍图，不要当特例排除。
-- list 卡片名与 title 名可能不同：id=86656 卡片写「瞬(小)」，title 是「瞬（幼女）」，落盘按 title 为 `瞬（幼女）.png`（约束 6，更规范）。
-- CDN 内容协商（gfjs 路线）：个别资源 URL 后缀与实际响应格式不一致。实测约 275+ 个里 8 个 png/jpg 后缀互换 + 1 个 webp（律 id=677904，URL `.jpg` 但响应 webp）+ 部分大写 `.JPG`（错配数是历史实测，不随基数增长变化）。download.ps1 按 `Get-ImageFormat` 实际内容定扩展名，这些都会被正确识别并落成 `{名}.webp` / `{名}.jpg` 等，**不是失败**。hydt/lihun 路线下载的总是 PNG，不涉及此问题。
-- 最小图可能仅 ~64 KB（如艾米临战，wiki 原图就小），不要按文件大小说它是失败的。
-- **「编辑中」角色**：wiki 页面处于草稿态时 `<title>` 为 `【编辑中】<角色名>_碧蓝档案...`，会随 wiki 编辑进度变化——**靠运行时 title 检测（阶段 2 的 prefix 检测逻辑），不要依赖固定名单**。阶段 2 已剥离 `【编辑中】` 前缀并标记 `editing:true`，落盘文件名不会带污染。官方介绍图（gfjs）、回忆大厅图（hydt）、角色立绘（lihun）在编辑中页面上通常都能正常下载（实测编辑中角色 714029 有下载按钮且成功下载）。
-- **hydt/lihun 下载文件名是数字 ID**（如 `291700.png`），不是角色名——这是 gamekee 美术资源 ID。agent 必须按 `name` 字段（从 `<title>` 取）改名落盘。实测日奈 id=59934 下载文件名 `291700.png`，agent 改名为 `日奈.png`。
-- **hydt/lihun 按键文本跨角色一致**：实测日奈/日奈泳装/日奈礼服 3 个角色，「切换立绘」和「下载图片」两个按钮的文本完全相同（`button.action-item`，textContent 精确匹配）。但**按键总数 3-5 个因角色而异**（日奈 5 键含「切换时装」「切换动作」、泳装 4 键、礼服 3 键），必须用 `.find(b => textContent === '切换立绘')` 文本匹配，**不可按索引**（如 `btns[2]`）定位。
+- 个别角色的回忆大厅图可能在 wiki 上**本就相同**（如同一底图的不同皮肤，MD5 一致），各自保存一份符合预期。
+- 联动角色也有回忆大厅和官方介绍图，不要当特例排除。
+- list 卡片名与 title 名可能不同（半角 vs 全角括号等），落盘按 title 更规范（约束 6）。
+- CDN 内容协商（gfjs 路线）：个别资源 URL 后缀与实际响应格式不一致。实测约 275+ 个里 8 个 png/jpg 后缀互换 + 1 个 webp（历史实测中个别角色，URL `.jpg` 但响应 webp）+ 部分大写 `.JPG`（错配数是历史实测，不随基数增长变化）。download.ps1 按 `Get-ImageFormat` 实际内容定扩展名，这些都会被正确识别并落成 `{名}.webp` / `{名}.jpg` 等，**不是失败**。hydt/lihun 路线下载的总是 PNG，不涉及此问题。
+- 最小图可能仅 ~64 KB（wiki 原图就小），不要按文件大小说它是失败的。
+- **「编辑中」角色**：wiki 页面处于草稿态时 `<title>` 为 `【编辑中】<角色名>_碧蓝档案...`，会随 wiki 编辑进度变化——**靠运行时 title 检测（阶段 2 的 prefix 检测逻辑），不要依赖固定名单**。阶段 2 已剥离 `【编辑中】` 前缀并标记 `editing:true`，落盘文件名不会带污染。官方介绍图（gfjs）、回忆大厅图（hydt）、角色立绘（lihun）在编辑中页面上通常都能正常下载。
+- **hydt/lihun 下载文件名是数字 ID**（如 `NNNNN.png`），不是角色名——这是 gamekee 美术资源 ID。agent 必须按 `name` 字段（从 `<title>` 取）改名落盘。
+- **hydt/lihun 按键文本跨角色一致**：历史实测多个角色（含不同皮肤），「切换立绘」和「下载图片」两个按钮的文本完全相同（`button.action-item`，textContent 精确匹配）。但**按键总数 3-5 个因角色而异**，必须用 `.find(b => textContent === '切换立绘')` 文本匹配，**不可按索引**（如 `btns[2]`）定位。
 
 ## 故障排查表
 

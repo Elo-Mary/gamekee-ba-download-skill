@@ -12,7 +12,7 @@ An [Agent Skills](https://agentskills.io)-standard skill: lets an AI agent batch
 
 ## What It Does
 
-- Automatically scrapes the gamekee "Implemented Students" roster (~267 characters).
+- Automatically scrapes the gamekee "Implemented Students" roster (~275+ characters, wiki keeps growing).
 - Opens each character's detail page and extracts image URLs by the specified type.
 - Downloads images in bulk via PowerShell, determines format from real file headers (CDN content negotiation makes URL extensions unreliable), with checkpoint resume and failure retry.
 - Organizes output into subdirectories by image type:
@@ -243,7 +243,7 @@ The agent handles the full pipeline: scrape roster, extract images per character
 - **Game**: Blue Archive
 - **Server**: JP
 - **Image types**: Memorial Lobby, Official Introduction
-- **Source**: gamekee.com Blue Archive wiki, Implemented Students page (~267 characters, including collab characters)
+- **Source**: gamekee.com Blue Archive wiki, Implemented Students page (~275+ characters, including collab characters)
 
 ## Roadmap
 
